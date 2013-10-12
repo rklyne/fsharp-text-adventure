@@ -29,17 +29,32 @@ type GameState = {
     character : Character ;
 }
 
+// Game actions
+
+let print_message message state =
+    Console.WriteLine (message:string)
+    state
+
 let move direction state =
-    { state with
-        screen = snd (Array.filter (fun x -> direction = fst x) state.screen.exits).[0] ;
-    }
+    let exits = (Array.filter (fun x -> direction = fst x) state.screen.exits)
+    if not ((Array.length exits) = 1) then print_message "Illegal move" state
+    else
+        { state with
+            screen = snd exits.[0] ;
+        }
+
+let help_text = "Use n,e,w,s characters to move. "
+
 
 let read_user_command state =
-    let parse_command = function
-        | "n" | "N" -> move Direction.North
-        | "e" | "E" -> move Direction.East
-        | "s" | "S" -> move Direction.South
-        | "w" | "W" -> move Direction.West
+    let parse_command text = 
+        match text with
+            | "n" | "N" -> print_message "north..." >> move Direction.North
+            | "e" | "E" -> print_message "east..."  >> move Direction.East
+            | "s" | "S" -> print_message "south..." >> move Direction.South
+            | "w" | "W" -> print_message "west..."  >> move Direction.West
+            | "?"       -> print_message help_text
+            | _ -> print_message ("Bad command: " + text) >> print_message "'?' for help"
     Console.WriteLine(state.character.name + "> ")
     let input = Console.ReadLine()
     parse_command input
@@ -60,6 +75,7 @@ let play_game setup =
     let screens = setup.screens
     let apply_command command state = command state
     let game_over = game_over_condition setup
+    let end_game state = display_frame state
     let rec run_frame (current_state:GameState) = 
         display_frame current_state
         let command = read_user_command current_state
@@ -67,6 +83,8 @@ let play_game setup =
         if not (game_over new_state) then
             run_frame new_state
             ()
+        else
+            end_game new_state
 
 
     let character:Character = {name="Salvador Dali"};
