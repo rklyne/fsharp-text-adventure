@@ -23,11 +23,24 @@ type GameSetup = {
     starting_screen : Screen ;
 }
 
-type GameState = {
+type Command = (GameState -> GameState)
+
+and Item = {
+    name : string ;
+    transitive_verbs : Map<string, (Item -> Command)> ;
+    intransitive_verbs : Map<string, Command> ;
+}
+
+and GameState = {
     setup : GameSetup ;
     screen : Screen ;
     character : Character ;
+    inventory : Inventory ;
 }
+
+and Inventory = (Item[])
+
+
 
 // Game actions
 
@@ -45,6 +58,9 @@ let move direction state =
 
 let help_text = "Use n,e,w,s characters to move. "
 
+let prompt (message:string) = 
+    Console.Write message
+    Console.ReadLine()
 
 let read_user_command state =
     let parse_command text = 
@@ -55,8 +71,7 @@ let read_user_command state =
             | "w" | "W" -> print_message "west..."  >> move Direction.West
             | "?"       -> print_message help_text
             | _ -> print_message ("Bad command: " + text) >> print_message "'?' for help"
-    Console.WriteLine(state.character.name + "> ")
-    let input = Console.ReadLine()
+    let input = prompt (state.character.name + "> ")
     parse_command input
 
 let display_frame state =
@@ -66,10 +81,13 @@ let initial_state setup character = {
     setup = setup ;
     screen = setup.starting_screen ;
     character = character ;
+    inventory = [||] ;
 }
 
 let game_over_condition setup state = 
     (Array.length state.screen.exits) = 0
+
+let prompt_for_name() = prompt "Please enter your name: "
 
 let play_game setup = 
     let screens = setup.screens
@@ -87,7 +105,7 @@ let play_game setup =
             end_game new_state
 
 
-    let character:Character = {name="Salvador Dali"};
+    let character:Character = {name=prompt_for_name()};
     run_frame (initial_state setup character)
     
 let load_level_pack () =
