@@ -9,17 +9,20 @@ type Direction =
     | East = 'E'
     | West = 'W'
 
-type Screen = {
-    exits : (Direction*Screen)[] ;
+type ScreenChange = ScreenList -> Screen
+and  Screen = {
+    name: string ;
+    exits : (Direction*ScreenChange)[] ;
     text : string ;
 }
+and ScreenList = Screen list
 
 type Character = {
     name : string ;
 }
 
 type GameSetup = {
-    screens : Screen[] ;
+    screens : ScreenList ;
     starting_screen : Screen ;
 }
 
@@ -53,7 +56,7 @@ let move direction state =
     if not ((Array.length exits) = 1) then print_message "Illegal move" state
     else
         { state with
-            screen = snd exits.[0] ;
+            screen = ((snd exits.[0]) state.setup.screens) ;
         }
 
 let help_text = "Use n,e,w,s characters to move. "
@@ -78,10 +81,10 @@ let display_frame state =
     Console.WriteLine(state.screen.text)
 
 let initial_state setup character = {
-    setup = setup ;
-    screen = setup.starting_screen ;
-    character = character ;
-    inventory = [||] ;
+    setup = (setup                   :GameSetup) ;
+    screen = (setup.starting_screen  :Screen) ;
+    character = (character           :Character) ;
+    inventory = ([||]                :Inventory) ;
 }
 
 let game_over_condition setup state = 
@@ -105,21 +108,36 @@ let play_game setup =
             end_game new_state
 
 
-    let character:Character = {name=prompt_for_name()};
+    let character:Character = {name=prompt_for_name()} ;
     run_frame (initial_state setup character)
     
 let load_level_pack () =
-    let s2 = {
-        exits = [||] ;
-        text = "You win!" ;
-    }
-    let s1 = {
-        exits = [|(Direction.North, s2)|] ;
-        text = "You are in a room. To the north there is an open door..." ;
-    }
+    let screen_named name (screens:ScreenList) = 
+        let matching = ((List.filter (fun screen -> (screen.name = name)) screens):ScreenList)
+        let count = List.length matching
+        if (count = 0) then (failwith ("No such screen in set: " + name))
+        elif (count > 1) then (failwith ("Multiple screens match name " + name))
+        else ((List.head matching):Screen)
+    let screens = [
+        {
+            name = "end" ;
+            exits = [||] ;
+            text = "You win!" ;
+        };
+        {
+            name = "start" ;
+            exits = [|(Direction.North, screen_named "corridor")|] ;
+            text = "You are in a room. To the north there is an open door..." ;
+        };
+        {
+            name = "corridor" ;
+            exits = [|(Direction.South, screen_named "start");(Direction.North, screen_named "end")|] ;
+            text = "You are in a corridor running north to south. To the north there is an sign reading 'winning this way'..." ;
+        };
+    ]
     {
-        starting_screen = s1;
-        screens = [|s1;s2|];
+        starting_screen = screen_named "start" screens;
+        screens = screens
     }:GameSetup
     
 [<EntryPoint>]
