@@ -12,7 +12,7 @@ type Direction =
 type ScreenChange = ScreenList -> Screen
 and  Screen = {
     name: string ;
-    exits : (Direction*ScreenChange)[] ;
+    exits : Map<Direction, ScreenChange> ;
     text : string ;
 }
 and ScreenList = Screen list
@@ -39,9 +39,10 @@ and GameState = {
     screen : Screen ;
     character : Character ;
     inventory : Inventory ;
+    items : Map<string, Item> ;
 }
 
-and Inventory = (Item[])
+and Inventory = (Item list)
 
 
 
@@ -52,11 +53,11 @@ let print_message message state =
     state
 
 let move direction state =
-    let exits = (Array.filter (fun x -> direction = fst x) state.screen.exits)
-    if not ((Array.length exits) = 1) then print_message "Illegal move" state
+    let exits = state.screen.exits
+    if not (exits.ContainsKey direction) then print_message "Illegal move" state
     else
         { state with
-            screen = ((snd exits.[0]) state.setup.screens) ;
+            screen = (exits.Item direction) state.setup.screens
         }
 
 let help_text = "Use n,e,w,s characters to move. "
@@ -82,13 +83,14 @@ let display_frame state =
 
 let initial_state setup character = {
     setup = (setup                   :GameSetup) ;
-    screen = (setup.starting_screen  :Screen) ;
+    screen = (setup.starting_screen  :Screen)    ;
     character = (character           :Character) ;
-    inventory = ([||]                :Inventory) ;
+    inventory = ([]                  :Inventory) ;
+    items = Map<string, Item> [||]           ;
 }
 
 let game_over_condition setup state = 
-    (Array.length state.screen.exits) = 0
+    state.screen.exits.Count = 0
 
 let prompt_for_name() = prompt "Please enter your name: "
 
@@ -118,20 +120,22 @@ let load_level_pack () =
         if (count = 0) then (failwith ("No such screen in set: " + name))
         elif (count > 1) then (failwith ("Multiple screens match name " + name))
         else ((List.head matching):Screen)
+    let mx lst =
+        Map<Direction, ScreenChange> lst
     let screens = [
         {
             name = "end" ;
-            exits = [||] ;
+            exits = mx [||] ;
             text = "You win!" ;
         };
         {
             name = "start" ;
-            exits = [|(Direction.North, screen_named "corridor")|] ;
+            exits = mx [|(Direction.North, screen_named "corridor")|] ;
             text = "You are in a room. To the north there is an open door..." ;
         };
         {
             name = "corridor" ;
-            exits = [|(Direction.South, screen_named "start");(Direction.North, screen_named "end")|] ;
+            exits = mx [|(Direction.South, screen_named "start");(Direction.North, screen_named "end")|] ;
             text = "You are in a corridor running north to south. To the north there is an sign reading 'winning this way'..." ;
         };
     ]
