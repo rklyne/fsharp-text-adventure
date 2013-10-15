@@ -127,10 +127,10 @@ let room_described text room =
 
 let get_screen_named name (screens:ScreenList) = 
     let matching = screens |> List.filter (fun screen -> screen.name = name)
-    let count = List.length matching
-    if count = 0 then failwith ("No such screen in set: " + name)
-    elif count > 1 then failwith ("Multiple screens match name " + name)
-    else List.head matching
+    match matching with
+    | [] -> failwith ("No such screen in set: " + name)
+    | [x] -> x
+    | _ -> failwith ("Multiple screens match name " + name)
 
 let with_named_exit direction name screen = 
     { screen with
