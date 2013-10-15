@@ -128,9 +128,12 @@ let prompt (message:string) =
 let read_user_command state =
     let parse_command (text:string) =
         let other_input (text:string) =
-            let verbs = [for verb in state.screen.intransitive_verbs do
-                if text.StartsWith(verb) then
-                    ((state.screen.intransitive_verbs.Item verb):Command)
+            let verbs = [for item in state.screen.items do
+                yield! [for key_value in item.intransitive_verbs do
+                    let verb, command = key_value.Key, key_value.Value
+                    if text.StartsWith(verb) then
+                        yield command
+                ]
             ]
             if (List.length verbs) = 1 then
                 (verbs.[0]:Command)
@@ -141,7 +144,7 @@ let read_user_command state =
             | "e" | "east" -> print_message "east..."  >> move Direction.East
             | "s" | "south" -> print_message "south..." >> move Direction.South
             | "w" | "west" -> print_message "west..."  >> move Direction.West
-            | "quit" -> print_message "Quitting..." >> quit_game
+            | "quit" | "exit" -> print_message "Quitting..." >> quit_game
             | "?"       -> print_message help_text
             | _ -> other_input text
     let input = prompt (state.character.name + "> ")
@@ -149,7 +152,7 @@ let read_user_command state =
 
 let display_frame state =
     Console.WriteLine(state.screen.text)
-    if List.length state.screen.items = 0 then
+    if List.length state.screen.items <> 0 then
         Console.WriteLine("You see a {0} here.",
             String.Join(" and a ", 
                 [for item in state.screen.items do
@@ -211,11 +214,15 @@ let with_named_exit direction name screen =
         exits = screen.exits.Add (direction, (get_screen_named name)) ;
     }
 
-let new_item name = {
-    name = name ;
-    transitive_verbs = Map<string, Item->Command> [] ;
-    intransitive_verbs = Map<string, Command> [] ;
-}
+let new_item name =
+    if name = "" then
+        failwith "Name is empty"
+    else 
+        {
+            name = name ;
+            transitive_verbs = Map<string, Item->Command> [] ;
+            intransitive_verbs = Map<string, Command> [] ;
+        }
 
 
 let opens_with_key key screen_mod door =
