@@ -11,51 +11,51 @@ type Direction =
 
 type ScreenChange = ScreenList -> Screen
 and  Screen = {
-    name: string ;
-    exits : Map<Direction, ScreenChange> ;
-    text : string ;
+    name: string
+    exits : Map<Direction, ScreenChange>
+    text : string
 }
 and ScreenList = Screen list
 
 type Character = {
-    name : string ;
+    name : string
 }
 
 type GameSetup = {
-    screens : ScreenList ;
-    starting_screen : Screen ;
+    screens : ScreenList
+    starting_screen : Screen
 }
 
 type Command = (GameState -> GameState)
 
 and Item = {
-    name : string ;
-    transitive_verbs : Map<string, (Item -> Command)> ;
-    intransitive_verbs : Map<string, Command> ;
+    name : string
+    transitive_verbs : Map<string, (Item -> Command)>
+    intransitive_verbs : Map<string, Command>
 }
 
 and GameState = {
-    screen : Screen ;
-    character : Character ;
-    inventory : Inventory ;
-    items : Map<string, Item> ;
-    screens : ScreenList ;
+    screen : Screen
+    character : Character
+    inventory : Inventory
+    items : Map<string, Item>
+    screens : ScreenList
 }
 
 and Inventory = (Item list)
 
 
 let room_named name = {
-    name = name ;
-    text = "";
-    exits = Map<Direction, ScreenChange> [||] ;
+    name = name
+    text = ""
+    exits = Map<Direction, ScreenChange> [||]
 }
 
 
 // Game actions
 
-let print_message message state =
-    Console.WriteLine (message:string)
+let print_message (message: string) state =
+    Console.WriteLine message
     state
 
 let move direction state =
@@ -68,9 +68,8 @@ let move direction state =
 
 let help_text = "Use n,e,w,s characters to move. 'quit' to quit"
 
-let quit_game state = { state with
-    screen = room_named "END"
-}
+let quit_game state = 
+    { state with screen = room_named "END" }
 
 let prompt (message:string) = 
     Console.Write message
@@ -93,11 +92,11 @@ let display_frame state =
     Console.WriteLine(state.screen.text)
 
 let initial_state setup character = {
-    screen = (setup.starting_screen  :Screen)    ;
-    character = (character           :Character) ;
-    inventory = ([]                  :Inventory) ;
-    items = Map<string, Item> [||]               ;
-    screens = setup.screens                      ;
+    screen = setup.starting_screen
+    character = character
+    inventory = []
+    items = Map<string, Item> [||]
+    screens = setup.screens
 }
 
 let game_over_condition setup state = 
@@ -120,23 +119,22 @@ let play_game setup =
             end_game new_state
 
 
-    let character:Character = {name=prompt_for_name()} ;
+    let character = { Character.name = prompt_for_name() }
     run_frame (initial_state setup character)
     
-let room_described text room = { room with
-    text = text 
-}
+let room_described text room = 
+    { room with text = text }
 
 let get_screen_named name (screens:ScreenList) = 
-    let matching = ((List.filter (fun screen -> (screen.name = name)) screens):ScreenList)
-    let count = List.length matching
-    if (count = 0) then (failwith ("No such screen in set: " + name))
-    elif (count > 1) then (failwith ("Multiple screens match name " + name))
-    else ((List.head matching):Screen)
+    let matching = screens |> List.filter (fun screen -> screen.name = name)
+    match matching with
+    | [] -> failwith ("No such screen in set: " + name)
+    | [x] -> x
+    | _ -> failwith ("Multiple screens match name " + name)
 
-let with_named_exit direction name screen = { screen with
-    exits = screen.exits.Add (direction, (get_screen_named name)) ;
-}
+let with_named_exit direction name screen = 
+    { screen with
+        exits = screen.exits.Add (direction, (get_screen_named name)) }
 
 let load_level_pack () =
     let screen_named = get_screen_named
@@ -144,15 +142,15 @@ let load_level_pack () =
     let mx lst =
         Map<Direction, ScreenChange> lst
     let screens = [
-        room_named "start" |> with_text "You are in a room. To the north there is an open door..." |> with_named_exit Direction.North "corridor" ;
-        room_named "corridor" |> with_text "You are in a corridor running north to south. To the north there is an sign reading 'winning this way'..." |> with_named_exit Direction.South "start" |> with_named_exit Direction.North "door_room";
-        room_named "door_room" |> with_text "" |> with_named_exit Direction.North "end" ;
-        room_named "end" |> with_text "You win!" ;
+        room_named "start" |> with_text "You are in a room. To the north there is an open door..." |> with_named_exit Direction.North "corridor"
+        room_named "corridor" |> with_text "You are in a corridor running north to south. To the north there is an sign reading 'winning this way'..." |> with_named_exit Direction.South "start" |> with_named_exit Direction.North "door_room"
+        room_named "door_room" |> with_text "" |> with_named_exit Direction.North "end"
+        room_named "end" |> with_text "You win!"
     ]
     {
-        starting_screen = screen_named "start" screens;
+        starting_screen = screen_named "start" screens
         screens = screens
-    }:GameSetup
+    }
     
 [<EntryPoint>]
 let main args =
