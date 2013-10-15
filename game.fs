@@ -54,8 +54,8 @@ let room_named name = {
 
 // Game actions
 
-let print_message message state =
-    Console.WriteLine (message:string)
+let print_message (message: string) state =
+    Console.WriteLine message
     state
 
 let move direction state =
@@ -92,9 +92,9 @@ let display_frame state =
     Console.WriteLine(state.screen.text)
 
 let initial_state setup character = {
-    screen = (setup.starting_screen  :Screen)
-    character = (character           :Character)
-    inventory = ([]                  :Inventory)
+    screen = setup.starting_screen
+    character = character
+    inventory = []
     items = Map<string, Item> [||]
     screens = setup.screens
 }
@@ -119,18 +119,18 @@ let play_game setup =
             end_game new_state
 
 
-    let character:Character = {name=prompt_for_name()}
+    let character = { Character.name = prompt_for_name() }
     run_frame (initial_state setup character)
     
 let room_described text room = 
     { room with text = text }
 
 let get_screen_named name (screens:ScreenList) = 
-    let matching = ((List.filter (fun screen -> (screen.name = name)) screens):ScreenList)
+    let matching = screens |> List.filter (fun screen -> screen.name = name)
     let count = List.length matching
     if (count = 0) then (failwith ("No such screen in set: " + name))
     elif (count > 1) then (failwith ("Multiple screens match name " + name))
-    else ((List.head matching):Screen)
+    else (List.head matching)
 
 let with_named_exit direction name screen = 
     { screen with
@@ -150,7 +150,7 @@ let load_level_pack () =
     {
         starting_screen = screen_named "start" screens
         screens = screens
-    }:GameSetup
+    }
     
 [<EntryPoint>]
 let main args =
