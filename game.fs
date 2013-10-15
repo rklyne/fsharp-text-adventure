@@ -68,9 +68,8 @@ let move direction state =
 
 let help_text = "Use n,e,w,s characters to move. 'quit' to quit"
 
-let quit_game state = { state with
-    screen = room_named "END"
-}
+let quit_game state = 
+    { state with screen = room_named "END" }
 
 let prompt (message:string) = 
     Console.Write message
@@ -123,9 +122,8 @@ let play_game setup =
     let character:Character = {name=prompt_for_name()} ;
     run_frame (initial_state setup character)
     
-let room_described text room = { room with
-    text = text 
-}
+let room_described text room = 
+    { room with text = text }
 
 let get_screen_named name (screens:ScreenList) = 
     let matching = ((List.filter (fun screen -> (screen.name = name)) screens):ScreenList)
@@ -134,9 +132,9 @@ let get_screen_named name (screens:ScreenList) =
     elif (count > 1) then (failwith ("Multiple screens match name " + name))
     else ((List.head matching):Screen)
 
-let with_named_exit direction name screen = { screen with
-    exits = screen.exits.Add (direction, (get_screen_named name)) ;
-}
+let with_named_exit direction name screen = 
+    { screen with
+        exits = screen.exits.Add (direction, (get_screen_named name)) }
 
 let load_level_pack () =
     let screen_named = get_screen_named
