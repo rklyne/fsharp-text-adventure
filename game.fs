@@ -67,7 +67,7 @@ let add_item_to_screen item screen:Screen = {screen with
     items = add_item item screen.items
 }
 
-let with_verb verb action item = 
+let with_tverb verb action item = 
     { item with 
         transitive_verbs = item.transitive_verbs.Add (verb, action) ;
     }
@@ -229,7 +229,7 @@ let opens_with_key key screen_mod door =
     let verb k =
         if k.name = key.name then update_screen screen_mod
         else print_message "You need the key."
-    door |> with_verb "open" verb
+    door |> with_tverb "open" verb
 
 let new_door key direction exit = 
     new_item "door" |> opens_with_key key (with_named_exit direction exit)
@@ -241,7 +241,7 @@ let load_level_pack () =
     let screen_named = get_screen_named
     let with_text = room_described
     let with_item = add_item_to_screen
-    let collectible = with_verb "pick up" pick_up_object
+    let collectible = with_tverb "pick up" pick_up_object
     let mx lst =
         Map<Direction, ScreenChange> lst
     let key1 = new_item "Front door key" |> collectible
