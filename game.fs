@@ -118,6 +118,16 @@ let help_text = "Use n,e,w,s characters to move. 'quit' to quit"
 let quit_game state = 
     { state with screen = room_named "END" }
 
+let drop_object item_name state =
+    let item = select_item item_name state.items
+    {   (update_screen (fun screen ->
+            { screen with 
+                items = add_item item screen.items
+            }) state
+        ) with
+        items = remove_item item.name state.items
+    }
+
 let pick_up_object item_name state =
     let item = select_item item_name state.screen.items
     {   (update_screen (fun screen ->
@@ -140,10 +150,11 @@ let rec phrase words =
         | [wd] -> pstring wd                                                                                 
         | wd::wds -> pstring wd .>> (ws >>. (phrase wds))            
 let pick_up = phrase ["pick";"up"] >>. word |>> (fun item -> pick_up_object item)
+let put_down = (pstring "drop" <|> phrase ["put";"down"] <|> phrase ["pick";"up"]) >>. word |>> (fun item -> drop_object item)
 
 let parse_exit = pstringCI "exit" <|> pstringCI "quit" |>> (fun _ -> quit_game)
 let parse_show_items = (pstringCI "inventory" <|> pstringCI "items") |>> (fun _ -> display_inventory)
-let parse_action = pick_up <|> parse_show_items
+let parse_action = pick_up <|> put_down <|> parse_show_items
 let parse_movement = 
         (pstring "n" <|> pstring "north" |>> (fun _ -> (print_message "north..." >> move Direction.North)))
     <|> (pstring "e" <|> pstring "east" |>> (fun _ -> (print_message "east..."  >> move Direction.East)))
