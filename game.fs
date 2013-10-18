@@ -42,14 +42,15 @@ let select_item (name_in:string) items =
     let name = name_in.ToLower()
     try
         match [for item in items do if item.name = name then yield item] with
-            | [] -> failwith "no item"
-            | [x] -> x
-            | _ -> failwith ("many items named " + name)
+            | []    -> failwith "no item"
+            | [x]   -> x
+            | _     -> failwith ("many items named " + name)
     with
-        | :? Exception -> match [for item in items do if item.name.ToLower().Contains(name) then yield item] with
-            | [] -> failwith ("no such item '" + name + "'")
-            | [x] -> x
-            | _ -> failwith ("too many items match " + name)
+        | :? Exception -> 
+            match [for item in items do if item.name.ToLower().Contains(name) then yield item] with
+            | []    -> failwith ("no such item '" + name + "'")
+            | [x]   -> x
+            | _     -> failwith ("too many items match " + name)
 
 assert ((select_item "key" [{Item.name="the key"}]).name = "the key")
 
@@ -70,15 +71,16 @@ let room_named name = {
 // Inventory functions
 //
 
-let rec remove_item item inventory = match inventory with
+let rec remove_item_by_name item inventory =
+    match inventory with
     | []    -> []
-    | _item :: rest -> if _item.name = item then rest else remove_item item rest
+    | _item :: rest -> if _item.name = item then rest else remove_item_by_name item rest
+let remove_item item = remove_item_by_name item.name
 
 let add_item item (inventory:Inventory) = item :: inventory
 
-let add_item_to_screen item screen:Screen = {screen with
-    items = add_item item screen.items
-}
+let add_item_to_screen item screen:Screen =
+    {screen with items = add_item item screen.items}
 
 // Screen helper functions
 //
@@ -120,23 +122,17 @@ let quit_game state =
 
 let drop_object item_name state =
     let item = select_item item_name state.items
-    {   (update_screen (fun screen ->
-            { screen with 
-                items = add_item item screen.items
-            }) state
-        ) with
-        items = remove_item item.name state.items
-    }
+    let screen_change screen =
+        { screen with Screen.items = add_item item screen.items }
+    (update_screen screen_change 
+        {state with GameState.items = remove_item item state.items})
 
 let pick_up_object item_name state =
     let item = select_item item_name state.screen.items
-    {   (update_screen (fun screen ->
-            { screen with 
-                items = remove_item item.name screen.items
-            }) state
-        ) with
-        items = add_item item state.items
-    }
+    let screen_change screen =
+        { screen with Screen.items = remove_item item screen.items }
+    (update_screen screen_change
+        {state with GameState.items = add_item item state.items})
 
 // Parsers
 //
@@ -150,7 +146,7 @@ let rec phrase words =
         | [wd] -> pstring wd                                                                                 
         | wd::wds -> pstring wd .>> (ws >>. (phrase wds))            
 let pick_up = phrase ["pick";"up"] >>. word |>> (fun item -> pick_up_object item)
-let put_down = (pstring "drop" <|> phrase ["put";"down"] <|> phrase ["pick";"up"]) >>. word |>> (fun item -> drop_object item)
+let put_down = (pstring "drop" <|> phrase ["put";"down"]) >>. word |>> (fun item -> drop_object item)
 
 let parse_exit = pstringCI "exit" <|> pstringCI "quit" |>> (fun _ -> quit_game)
 let parse_show_items = (pstringCI "inventory" <|> pstringCI "items") |>> (fun _ -> display_inventory)
