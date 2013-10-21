@@ -29,6 +29,7 @@ and ScreenList = Screen list
 and Command = (GameState -> GameState)
 and Item = {
     name : string
+    is_fixed : bool
 }
 and GameState = {
     screen : Screen
@@ -38,21 +39,22 @@ and GameState = {
 }
 and Inventory = (Item list)
 
+exception ItemSelectError of string
 let select_item (name_in:string) items =
     let name = name_in.ToLower()
+    let none msg = raise (ItemSelectError msg)
+    let result x = x
     try
         match [for item in items do if item.name = name then yield item] with
-            | []    -> failwith "no item"
-            | [x]   -> x
-            | _     -> failwith ("many items named " + name)
+        | []    -> none "no item"
+        | [x]   -> result x
+        | _     -> none ("many items named " + name)
     with
-        | :? Exception -> 
-            match [for item in items do if item.name.ToLower().Contains(name) then yield item] with
-            | []    -> failwith ("no such item '" + name + "'")
-            | [x]   -> x
-            | _     -> failwith ("too many items match " + name)
-
-assert ((select_item "key" [{Item.name="the key"}]).name = "the key")
+    | _ ->
+        match [for item in items do if item.name.ToLower().Contains(name) then yield item] with
+        | []    -> none ("no such item '" + name + "'")
+        | [x]   -> result x
+        | _     -> none ("too many items match " + name)
 
 let empty_inventory = []:Inventory
 
@@ -81,6 +83,9 @@ let add_item item (inventory:Inventory) = item :: inventory
 
 let add_item_to_screen item screen:Screen =
     {screen with items = add_item item screen.items}
+
+let can_collect_item item =
+    not item.is_fixed
 
 // Screen helper functions
 //
@@ -128,36 +133,50 @@ let drop_object item_name state =
         {state with GameState.items = remove_item item state.items})
 
 let pick_up_object item_name state =
-    let item = select_item item_name state.screen.items
-    let screen_change screen =
-        { screen with Screen.items = remove_item item screen.items }
-    (update_screen screen_change
-        {state with GameState.items = add_item item state.items})
+    try
+        let item = select_item item_name state.screen.items
+        if can_collect_item item then
+            let screen_change screen =
+                { screen with Screen.items = remove_item item screen.items }
+            (update_screen screen_change
+                {state with GameState.items = add_item item state.items})
+        else
+            print_message "You cannot pick that up." state
+    with
+        | ItemSelectError msg -> print_message (String.Format("There is no '{0}' here...", item_name)) state
+
+let open_door door_name state =
+    let door = select_item door_name state
+    state
 
 // Parsers
 //
 
+let _ws = many (anyOf "\t ")
 let ws = many1 (anyOf "\t ")
-let word_chars = String.Join("", ['a' .. 'z']) + String.Join("", ['A' .. 'Z'])                
-let word = ws >>. many1Chars (anyOf word_chars)
-let rec phrase words =                                                                                       
-    match words with                                                                                         
-        | [] -> failwith "This phrase parser requires the words in the phrase"                               
-        | [wd] -> pstring wd                                                                                 
-        | wd::wds -> pstring wd .>> (ws >>. (phrase wds))            
-let pick_up = phrase ["pick";"up"] >>. word |>> (fun item -> pick_up_object item)
-let put_down = (pstring "drop" <|> phrase ["put";"down"]) >>. word |>> (fun item -> drop_object item)
+let pstringws x = _ws >>. (pstringCI x)
+let word_chars = String.Join("", ['a' .. 'z']) + String.Join("", ['A' .. 'Z'])
+let any_word = ws >>. many1Chars (anyOf word_chars)
+let rec phrase words =
+    match words with
+        | [] -> failwith "This phrase parser requires the words in the phrase"
+        | [wd] -> pstringws wd
+        | wd::wds -> pstringws wd .>> (ws >>. (phrase wds))
+let pick_up = phrase ["pick";"up"] >>. any_word |>> (fun item -> pick_up_object item)
+let put_down = (pstringws "drop" <|> phrase ["put";"down"]) >>. any_word |>> (fun item -> drop_object item)
 
-let parse_exit = pstringCI "exit" <|> pstringCI "quit" |>> (fun _ -> quit_game)
-let parse_show_items = (pstringCI "inventory" <|> pstringCI "items") |>> (fun _ -> display_inventory)
-let parse_action = pick_up <|> put_down <|> parse_show_items
+let parse_open_door = pstringws "open" |>> (fun door_name -> open_door door_name)
+let parse_exit = pstringws "exit" <|> pstringws "quit" |>> (fun _ -> quit_game)
+let parse_help = pstringws "help" <|> pstringws "?" |>> (fun _ -> print_message help_text)
+let parse_show_items = (pstringws "inventory" <|> pstringws "items") |>> (fun _ -> display_inventory)
+let parse_action = pick_up <|> put_down <|> parse_show_items <|> parse_help <|> parse_open_door
 let parse_movement = 
-        (pstring "n" <|> pstring "north" |>> (fun _ -> (print_message "north..." >> move Direction.North)))
-    <|> (pstring "e" <|> pstring "east" |>> (fun _ -> (print_message "east..."  >> move Direction.East)))
-    <|> (pstring "s" <|> pstring "south" |>> (fun _ -> (print_message "south..." >> move Direction.South)))
-    <|> (pstring "w" <|> pstring "west" |>> (fun _ -> (print_message "west..."  >> move Direction.West)))
+        (pstringws "n" <|> pstringws "north" |>> (fun _ -> (print_message "north..." >> move Direction.North)))
+    <|> (pstringws "e" <|> pstringws "east" |>> (fun _ -> (print_message "east..."  >> move Direction.East)))
+    <|> (pstringws "s" <|> pstringws "south" |>> (fun _ -> (print_message "south..." >> move Direction.South)))
+    <|> (pstringws "w" <|> pstringws "west" |>> (fun _ -> (print_message "west..."  >> move Direction.West)))
 
-let parse_game_command = parse_movement <|> parse_exit <|> parse_action
+let parse_game_command = parse_exit <|> parse_action <|> parse_movement
 
 // IO helpers
 //
@@ -169,11 +188,12 @@ let read_user_command state =
     let parse_command text =
         match run parse_game_command text with
             | Success(cmd, _, _) -> cmd
-            | Failure(msg, _, _) -> print_message ("Bad command: \r\n" + msg)
+            | Failure(msg, _, _) -> print_message ("Bad command: \r\n" + (msg.Replace("(case-insensitive)", "")))
     let input = prompt (state.character.name + "> ")
     parse_command input
 
 let display_frame state =
+    Console.WriteLine("")
     Console.WriteLine(state.screen.text)
     if List.length state.screen.items <> 0 then
         Console.WriteLine("You see a {0} here.",
@@ -238,17 +258,18 @@ let new_item name =
         failwith "Name is empty"
     else 
         {
-            Item.name = name ;
-            // transitive_verbs = Map<string, Item->Command> [] ;
-            // intransitive_verbs = Map<string, Command> [] ;
+            Item.name = name
+            Item.is_fixed = true
         }
 
+let collectible item =
+    {item with is_fixed = false}
 
 let opens_with_key key screen_mod door =
     let verb k =
         if k.name = key.name then update_screen screen_mod
         else print_message "You need the key."
-    door // |> with_tverb "open" verb
+    door
 
 let new_door key direction exit = 
     new_item "door" |> opens_with_key key (with_named_exit direction exit)
@@ -263,7 +284,7 @@ let load_level_pack () =
     // let collectible = with_tverb "pick up" pick_up_object
     let mx lst =
         Map<Direction, ScreenChange> lst
-    let key1 = new_item "Front door key" // |> collectible
+    let key1 = new_item "Front door key" |> collectible
     let with_key1_exit = with_locked_exit key1
     let screens = [
         room_named "start" |> with_text "You are in a room. To the north there is an open door..." |> with_named_exit Direction.North "corridor" |> with_item key1 ;
