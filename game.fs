@@ -82,7 +82,7 @@ namespace textadventure
 
         let pick_up_object item_name (state:GameState) =
             try
-                let item = state.select_item item_name : Item 
+                let item = state.screen.select_item item_name : Item 
                 if can_collect_item item then
                     let screen_change screen =
                         { screen with Screen.items = remove_item item screen.items }
@@ -92,6 +92,11 @@ namespace textadventure
                     print_message "You cannot pick that up." state
             with
                 | ItemSelectError msg -> print_message (String.Format("There is no '{0}' here...", item_name)) state
+
+        let perform_intransitive_verb_action verb subject_name with_item_name (state:GameState) =
+            let subject = state.screen.select_item subject_name
+            let with_item = state.select_item with_item_name
+            (subject.verbs.Item verb) with_item state
 
         // Parsers
         //
@@ -106,7 +111,7 @@ namespace textadventure
                 | [] -> failwith "This phrase parser requires the words in the phrase"
                 | [wd] -> pstringws wd
                 | wd::wds -> pstringws wd .>> (ws >>. (phrase wds))
-        let pick_up = phrase ["pick";"up"] >>. any_word |>> (fun item -> pick_up_object item)
+        let pick_up = (pstringws "take" <|> phrase ["pick";"up"]) >>. any_word |>> (fun item -> pick_up_object item)
         let put_down = (pstringws "drop" <|> phrase ["put";"down"]) >>. any_word |>> (fun item -> drop_object item)
 
         let parse_exit =
@@ -117,13 +122,19 @@ namespace textadventure
             (pstringws "inventory" <|> pstringws "items") |>> (fun _ -> display_inventory)
         let parse_action =
             pick_up <|> put_down <|> parse_show_items <|> parse_help
+
+        let intransitive_verb_words = ["open"; "close"; "push"]
+        let parse_item_verb = 
+            let (h::t) = List.map pstringws intransitive_verb_words
+            (List.fold (fun l r -> l <|> r) h t) .>>. any_word .>> pstringws "with" .>>. any_word |>> (fun ((verb, subject), with_item) -> perform_intransitive_verb_action verb subject with_item)
+
         let parse_movement = 
                 (pstringws "n" <|> pstringws "north" |>> (fun _ -> (print_message "north..." >> move Direction.North)))
             <|> (pstringws "e" <|> pstringws "east" |>> (fun _ -> (print_message "east..."  >> move Direction.East)))
             <|> (pstringws "s" <|> pstringws "south" |>> (fun _ -> (print_message "south..." >> move Direction.South)))
             <|> (pstringws "w" <|> pstringws "west" |>> (fun _ -> (print_message "west..."  >> move Direction.West)))
 
-        let parse_game_command = parse_exit <|> parse_action <|> parse_movement
+        let parse_game_command = parse_exit <|> parse_action <|> parse_movement <|> parse_item_verb
 
         // IO helpers
         //
@@ -166,7 +177,7 @@ namespace textadventure
         //
 
         let game_over_condition setup state = 
-            state.screen.fixed_exits.Count = 0
+            state.screen.terminal
 
         let play_game setup = 
             let apply_command command state = command state
@@ -235,7 +246,7 @@ namespace textadventure
                 room_named "start" |> with_text "You are in a room. To the north there is an open door..." |> with_named_exit Direction.North "corridor" |> with_item key1
                 room_named "corridor" |> with_text "You are in a corridor running north to south. To the north there is an sign reading 'winning this way'..." |> with_named_exit Direction.South "start" |> with_named_exit Direction.North "door_room"
                 room_named "door_room" |> with_text "The front door is here" |> (with_key1_exit Direction.North "end")
-                room_named "end" |> with_text "You win!"
+                room_named "end" |> with_text "You win!" |> terminal_room
             ]
             {
                 starting_screen = screen_named "start" screens

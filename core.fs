@@ -31,6 +31,7 @@ namespace textadventure
         }
             with
                 member self.exits state = self.fixed_exits
+
         and ScreenList = Screen list
         and Command = (GameState -> GameState)
         and GameState = {
@@ -39,24 +40,6 @@ namespace textadventure
             items : Inventory
             screens : ScreenList
         }
-            with
-                member self.select_item (name_in:string) : Item =
-
-                    let items = self.items
-                    let name = name_in.ToLower()
-                    let none msg = raise (ItemSelectError msg)
-                    let result x = x
-                    try
-                        match [for item in items do if item.name = name then yield item] with
-                        | []    -> none "no item"
-                        | [x]   -> result x
-                        | _     -> none ("many items named " + name)
-                    with
-                    | _ ->
-                        match [for item in items do if item.name.ToLower().Contains(name) then yield item] with
-                        | []    -> none ("no such item '" + name + "'")
-                        | [x]   -> result x
-                        | _     -> none ("too many items match " + name)
 
         let empty_inventory = []:Inventory
         let default_item = {
@@ -78,5 +61,29 @@ namespace textadventure
         let add_verb word command item =
             { item with verbs=item.verbs.Add(word,command) }
 
+        let select_item_from_list (items:Inventory) (name_in:string) : Item =
+            let name = name_in.ToLower()
+            let none msg = raise (ItemSelectError msg)
+            let result x = x
+            try
+                match [for item in items do if item.name = name then yield item] with
+                | []    -> none "no item"
+                | [x]   -> result x
+                | _     -> none ("many items named " + name)
+            with
+            | _ ->
+                match [for item in items do if item.name.ToLower().Contains(name) then yield item] with
+                | []    -> none ("no such item '" + name + "'")
+                | [x]   -> result x
+                | _     -> none ("too many items match " + name)
 
-           
+
+
+        type GameState with
+            member self.select_item (name_in:string) : Item =
+                select_item_from_list self.items name_in
+
+        type Screen with
+            member self.select_item (name_in:string) : Item =
+                select_item_from_list self.items name_in
+
